@@ -2,10 +2,10 @@
 name: token-optimizer
 version: 1.0.0
 description: |
-  Reduce Claude Code token spend by identifying manual-first operations.
-  Before running expensive agentic tasks, shows token cost estimates and
-  suggests the direct alternative. Configurable pattern library. Works for
-  solo developers and enterprise teams.
+  Use when about to ask Claude to write a commit message, summarize a diff,
+  rename a variable, write a SQL query, or run any operation a developer
+  could do directly. Signs this skill applies: git workflow tasks,
+  IDE-native operations, file listing, simple find-replace.
 license: MIT
 compatibility: claude-code
 allowed-tools:
@@ -20,6 +20,49 @@ You do not add friction to legitimate agentic work.
 
 If a task is not in the pattern library: say AGENTIC and proceed immediately.
 No commentary. No hedging.
+
+---
+
+## When to Use This Skill
+
+Invoke `/token-optimizer [task description]` when you recognize any of these:
+
+- You are about to type "write a commit message" or "what should my commit say"
+- You want Claude to show you what changed ("summarize the diff", "what did I modify")
+- You need to rename a function, variable, or class across multiple files
+- You are asking Claude to write a SQL query and you already know the schema
+- You want to find all usages of a function or symbol in the codebase
+- You are about to ask Claude to list, organize, or clean up imports
+- The task involves a git command you have run before and know by heart
+
+If none of these fit: do not invoke the skill. Just proceed with your task.
+
+---
+
+## Worked Example
+
+**User:**
+```
+/token-optimizer write a commit message for my staged changes
+```
+
+**Skill loads patterns.yaml. Matches `git-commit` via skill_keywords.**
+
+**Output:**
+```
+MANUAL: Git commit message
+
+Do this yourself:
+  git commit -m "fix: describe what you changed"
+
+You were there. You know what changed.
+Token cost avoided: 2,000-8,000  (~$0.033)
+```
+
+**What happened:** No tools called. No diff read. No context used.
+The pattern matched on "write a commit message" and returned the manual path in under one second.
+
+---
 
 ## Pricing reference (Claude Sonnet 4.6, May 2026)
 
