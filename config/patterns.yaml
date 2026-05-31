@@ -1,0 +1,226 @@
+# token-optimizer / config/patterns.yaml
+#
+# The manual-first pattern library. This is the product.
+#
+# Each pattern describes one operation where a human doing it directly
+# is faster, cheaper, and just as good as asking Claude.
+#
+# Two keyword lists per pattern (they match different things):
+#   skill_keywords   - natural language phrases a user says to Claude
+#                      used by SKILL.md intercept mode
+#   bash_patterns    - Python regexes matched against the actual bash command
+#                      used by the token_guard.py hook
+#
+# Other fields:
+#   id                   unique snake_case identifier
+#   name                 human-readable name
+#   manual_alternative   exact command or action to do instead
+#   relatable_reason     one short sentence in human voice — the recognition moment
+#   token_estimate_low   conservative token estimate
+#   token_estimate_high  upper bound token estimate
+#   hybrid_steps         optional — list of steps for a human+Claude split approach
+#
+# Threshold logic (in token_guard.py):
+#   avg = (token_estimate_low + token_estimate_high) // 2
+#   block if avg >= block_threshold_tokens  OR  id in team_config.required_patterns
+
+settings:
+  # Only block if average token estimate meets or exceeds this value.
+  # Default 1000. Raise to 2000 for a lighter touch. Lower to 500 to catch more.
+  block_threshold_tokens: 1000
+
+
+patterns:
+
+  # ── Git ───────────────────────────────────────────────────────────────────
+
+  - id: git-commit
+    name: Git commit message generation
+    skill_keywords:
+      - commit
+      - write commit message
+      - commit message
+      - what should I write for the commit
+    bash_patterns:
+      - "^git\\s+commit\\s*$"           # bare: git commit
+      - "^git\\s+commit\\s+--amend"     # git commit --amend
+    manual_alternative: 'git commit -m "fix: describe what you changed"'
+    relatable_reason: "You were there. You know what changed."
+    token_estimate_low: 2000
+    token_estimate_high: 8000
+    # Claude reads your entire working directory context to generate a message
+    # you could type in 10 seconds. avg: 5,000 tokens, ~$0.015.
+
+  - id: git-diff
+    name: Git diff summary
+    skill_keywords:
+      - show me the diff
+      - what changed
+      - summarize the diff
+    bash_patterns:
+      - "^git\\s+diff\\s*$"             # bare: git diff (whole repo)
+      - "^git\\s+diff\\s+HEAD"
+    manual_alternative: "git diff --stat   (or: git diff | less)"
+    relatable_reason: "You wrote the code. The diff is yours to read."
+    token_estimate_low: 1000
+    token_estimate_high: 5000
+
+  - id: git-log
+    name: Git log summary
+    skill_keywords:
+      - recent commits
+      - git log
+      - last few commits
+      - what did I commit
+    bash_patterns:
+      - "^git\\s+log(?!.*--oneline)"    # git log without --oneline (verbose)
+    manual_alternative: "git log --oneline -10"
+    relatable_reason: "You committed it. You remember it."
+    token_estimate_low: 1000
+    token_estimate_high: 3000
+
+  - id: git-status
+    name: Git status check
+    skill_keywords:
+      - what files changed
+      - git status
+      - what did I change
+      - which files are modified
+    bash_patterns:
+      - "^git\\s+status\\s*$"
+    manual_alternative: "git status"
+    relatable_reason: "Open a terminal. Three seconds."
+    token_estimate_low: 300
+    token_estimate_high: 800
+    # avg 550 — below default threshold. Logged but not blocked unless lowered.
+
+  # ── SQL ───────────────────────────────────────────────────────────────────
+
+  - id: sql-from-scratch
+    name: SQL query from scratch
+    skill_keywords:
+      - write a sql query
+      - create a query
+      - sql select
+      - write me sql
+      - write a query for
+    bash_patterns: []
+    # No bash pattern — caught by skill intercept mode only.
+    # The waste is in the generation, not a bash call.
+    manual_alternative: "Write a rough SELECT with table/column names first, then ask Claude to optimize."
+    relatable_reason: "Starting with something cuts tokens 60-70%. You know the table names."
+    token_estimate_low: 1500
+    token_estimate_high: 6000
+    hybrid_steps:
+      - "Write: SELECT [columns] FROM [table] WHERE [rough condition]"
+      - "Then tell Claude: optimize this query / add the JOIN / handle the edge case"
+
+  # ── IDE-native operations ─────────────────────────────────────────────────
+
+  - id: variable-rename
+    name: Variable or function rename across files
+    skill_keywords:
+      - rename variable
+      - rename function
+      - rename class
+      - rename across files
+      - rename this
+    bash_patterns:
+      - "^sed\\s+-i.*s/"                # sed in-place substitution
+    manual_alternative: "F2 in VS Code   /   Shift+F6 in IntelliJ"
+    relatable_reason: "Your IDE was built for exactly this."
+    token_estimate_low: 800
+    token_estimate_high: 5000
+
+  - id: find-usages
+    name: Find references / search across codebase
+    skill_keywords:
+      - find usages
+      - find references
+      - where is this used
+      - search for
+      - find all occurrences
+    bash_patterns:
+      - "^grep\\s+-r"                   # recursive grep
+      - "^rg\\s"                        # ripgrep
+      - "^find\\s.*-name"              # find by filename
+    manual_alternative: "IDE Find References   (Alt+F7 IntelliJ  /  Shift+F12 VS Code)"
+    relatable_reason: "Your IDE does this faster than Claude."
+    token_estimate_low: 500
+    token_estimate_high: 2000
+
+  - id: organize-imports
+    name: Organize or clean up imports
+    skill_keywords:
+      - organize imports
+      - clean up imports
+      - remove unused imports
+      - fix imports
+      - sort imports
+    bash_patterns: []
+    manual_alternative: "Shift+Alt+O in VS Code   /   Ctrl+Alt+O in IntelliJ"
+    relatable_reason: "One keystroke. No reading required."
+    token_estimate_low: 500
+    token_estimate_high: 2000
+
+  # ── File operations ───────────────────────────────────────────────────────
+
+  - id: list-directory
+    name: List directory contents
+    skill_keywords:
+      - list files
+      - what files are in
+      - show me the files
+      - what is in this folder
+    bash_patterns:
+      - "^ls$"                          # bare ls
+      - "^ls\\s"                        # ls with flags
+      - "^dir$"
+      - "^dir\\s"
+    manual_alternative: "ls   (or open the folder in your file explorer)"
+    relatable_reason: "Your file explorer is literally open."
+    token_estimate_low: 200
+    token_estimate_high: 600
+    # avg 400 — below default threshold. Logged but not blocked.
+
+  - id: simple-find-replace
+    name: Find and replace in one file
+    skill_keywords:
+      - replace all
+      - find and replace
+      - change X to Y in this file
+      - swap this string
+    bash_patterns:
+      - "^sed\\s+-i\\s+['\"]s/"        # sed in-place string substitution
+    manual_alternative: "Ctrl+H in your IDE (Find & Replace)"
+    relatable_reason: "Ctrl+H. Done before Claude reads the file."
+    token_estimate_low: 400
+    token_estimate_high: 2000
+
+
+# ── Enterprise / team patterns ────────────────────────────────────────────
+# Add your team-specific patterns here. Same schema as above.
+# Commit this file to a shared dotfiles repo and distribute to your team.
+#
+# Example:
+# enterprise_patterns:
+#   - id: check-deploy
+#     name: Check deployment status
+#     skill_keywords: [check deploy, is it deployed, deployment status]
+#     bash_patterns: ["^kubectl get pods", "^heroku releases"]
+#     manual_alternative: "Open your deployment dashboard"
+#     relatable_reason: "The dashboard shows this in real time."
+#     token_estimate_low: 500
+#     token_estimate_high: 2000
+
+enterprise_patterns: []
+
+
+# ── Team configuration ─────────────────────────────────────────────────────
+# Engineering managers: fill this in and push to your team via dotfiles.
+
+team_config:
+  org_name: ""                      # shown in report header
+  cost_threshold_per_day_tokens: 0  # 0 = disabled; daily alert threshold
+  required_patterns: []             # these IDs always block, bypass ignored
+  # Example: required_patterns: ["git-commit", "variable-rename"]
