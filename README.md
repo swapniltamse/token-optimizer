@@ -239,6 +239,14 @@ Token estimates: use your own Claude Code usage dashboard for real numbers. Cons
 
 ---
 
+## Author
+
+Built by [Swapnil Tamse](https://www.linkedin.com/in/swapniltamse/) — engineering leader, AI/AI Security, NYC.
+
+[LinkedIn post that started this](https://www.linkedin.com/feed/update/urn:li:activity:7467175698206445568/) — context on why token discipline matters at team scale.
+
+---
+
 ## License
 
 MIT.
