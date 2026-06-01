@@ -41,6 +41,16 @@ def match_pattern(command, data):
     return None
 
 
+def match_read_pattern(file_path, data):
+    if not data or not file_path:
+        return None
+    for p in data.get("patterns", []) + data.get("enterprise_patterns", []):
+        for pattern in p.get("file_path_patterns", []):
+            if re.search(pattern, file_path, re.IGNORECASE):
+                return p
+    return None
+
+
 def build_message(p):
     avg = avg_tokens(p)
     cost = avg * _COST_PER_TOKEN
@@ -178,12 +188,29 @@ def main():
 
     tool_name  = payload.get("tool_name", "")
     tool_input = payload.get("tool_input", {})
-    if tool_name not in ("Bash", "Write"):
+    if tool_name not in ("Bash", "Write", "Read"):
         print(_CONTINUE); return
+
+    data = load_patterns()
+
+    # Read tool: match on file_path patterns only
+    if tool_name == "Read":
+        file_path = tool_input.get("file_path", "") if isinstance(tool_input, dict) else ""
+        log_call(tool_name, len(file_path))
+        matched = match_read_pattern(file_path, data)
+        if matched:
+            cfg       = data or {}
+            threshold = cfg.get("settings", {}).get("block_threshold_tokens", THRESHOLD)
+            required  = set(cfg.get("team_config", {}).get("required_patterns", []))
+            if avg_tokens(matched) >= threshold or matched.get("id") in required:
+                log_blocked(matched)
+                print(json.dumps({"action": "block", "message": build_message(matched)}))
+                return
+        print(_CONTINUE)
+        return
 
     command  = tool_input.get("command", "") if isinstance(tool_input, dict) else ""
     cmd_len  = len(command)
-    data     = load_patterns()
 
     # Gate 1 & 2: rate limits (command length cap + daily call cap).
     # Runs before pattern matching — same as food app bailing on oversized inputs

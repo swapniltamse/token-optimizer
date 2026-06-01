@@ -199,6 +199,63 @@ patterns:
     token_estimate_low: 500
     token_estimate_high: 2000
 
+  # ── File over-reading ─────────────────────────────────────────────────────
+  # Matched against the Read tool's file_path — not bash commands.
+  # These fire when Claude reads a file you could open yourself in 3 seconds.
+
+  - id: read-readme
+    name: Read README file
+    skill_keywords:
+      - how do I run this
+      - how to start the server
+      - how to set up
+      - what does this project do
+    bash_patterns: []
+    file_path_patterns:
+      - "README\\.md$"
+      - "README\\.txt$"
+      - "README$"
+    manual_alternative: "Open README.md in your editor"
+    relatable_reason: "You can read a README faster than Claude can."
+    token_estimate_low: 500
+    token_estimate_high: 3000
+
+  - id: read-run-config
+    name: Read server / run configuration file
+    skill_keywords:
+      - how do I run
+      - start the server
+      - run the app
+      - what command starts this
+    bash_patterns: []
+    file_path_patterns:
+      - "server\\.py$"
+      - "manage\\.py$"
+      - "Makefile$"
+      - "docker-compose\\.ya?ml$"
+      - "Procfile$"
+      - "justfile$"
+    manual_alternative: "Open the file in your editor — the run command is usually at the top"
+    relatable_reason: "Three seconds to open. No context needed."
+    token_estimate_low: 500
+    token_estimate_high: 2000
+
+  - id: read-generated-data
+    name: Read auto-generated data file
+    skill_keywords:
+      - what is in family-data
+      - show me the data file
+      - read the generated file
+    bash_patterns: []
+    file_path_patterns:
+      - "family-data\\.js$"
+      - ".*\\.generated\\."
+      - ".*\\.auto\\."
+    manual_alternative: "Edit the source file (e.g. family-profile.yaml) and re-run the generator"
+    relatable_reason: "Generated files change with the source. Read the source instead."
+    token_estimate_low: 1000
+    token_estimate_high: 4000
+
   # ── File operations ───────────────────────────────────────────────────────
 
   - id: list-directory
