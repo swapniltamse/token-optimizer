@@ -29,6 +29,17 @@ settings:
   # Default 1000. Raise to 2000 for a lighter touch. Lower to 500 to catch more.
   block_threshold_tokens: 1000
 
+  # Daily cap on total Bash/Write tool calls Claude makes in your session.
+  # 0 = disabled. When hit, all further tool calls are blocked until midnight.
+  # Mirrors the food app's origin + input-size gates — a hard ceiling before
+  # any processing happens. Start at 150 and tune down if you want more friction.
+  max_calls_per_day: 150
+
+  # Block commands longer than this many characters.
+  # 0 = disabled. Catches runaway multi-command strings that should be scripts.
+  # Mirrors the food app's foodName.length > 200 early bailout.
+  max_command_length: 2000
+
 
 patterns:
 
@@ -42,14 +53,39 @@ patterns:
       - commit message
       - what should I write for the commit
     bash_patterns:
-      - "^git\\s+commit\\s*$"           # bare: git commit
-      - "^git\\s+commit\\s+--amend"     # git commit --amend
+      - "^git\\s+commit"                # git commit (any form)
     manual_alternative: 'git commit -m "fix: describe what you changed"'
     relatable_reason: "You were there. You know what changed."
     token_estimate_low: 2000
     token_estimate_high: 8000
-    # Claude reads your entire working directory context to generate a message
-    # you could type in 10 seconds. avg: 5,000 tokens, ~$0.015.
+
+  - id: git-add
+    name: Git stage files
+    skill_keywords:
+      - git add
+      - stage files
+      - stage the changes
+      - add files to commit
+    bash_patterns:
+      - "^git\\s+add"
+    manual_alternative: "git add <file>   (or: git add -p for interactive)"
+    relatable_reason: "You know which files you changed."
+    token_estimate_low: 500
+    token_estimate_high: 1500
+
+  - id: git-push
+    name: Git push
+    skill_keywords:
+      - push it
+      - push the branch
+      - push to github
+      - push the commit
+    bash_patterns:
+      - "^git\\s+push"
+    manual_alternative: "git push"
+    relatable_reason: "One command. No reading required."
+    token_estimate_low: 500
+    token_estimate_high: 1500
 
   - id: git-diff
     name: Git diff summary

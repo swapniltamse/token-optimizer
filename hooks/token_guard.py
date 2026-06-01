@@ -6,13 +6,14 @@ import json, os, re, sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-SCRIPT_DIR  = Path(__file__).resolve().parent.parent
+SCRIPT_DIR    = Path(__file__).resolve().parent.parent
 PATTERNS_FILE = SCRIPT_DIR / "config" / "patterns.yaml"
-LOG_DIR     = Path.home() / ".claude" / "token-optimizer"
-LOG_FILE    = LOG_DIR / "blocked.log"
-THRESHOLD   = 1000
+LOG_DIR       = Path.home() / ".claude" / "token-optimizer"
+LOG_FILE      = LOG_DIR / "blocked.log"
+CALLS_LOG     = LOG_DIR / "calls.log"
+THRESHOLD     = 1000
 _COST_PER_TOKEN = (0.70 * 3.00 + 0.30 * 15.00) / 1_000_000  # Sonnet 4.6, 70/30 split
-_CONTINUE   = json.dumps({"action": "continue"})
+_CONTINUE     = json.dumps({"action": "continue"})
 
 
 def load_patterns():
@@ -67,6 +68,69 @@ def log_blocked(p):
         )
 
 
+# ── Rate limiting ─────────────────────────────────────────────────────────
+
+def log_call(tool_name, cmd_len):
+    """Record every non-skipped Bash/Write call for daily rate limiting."""
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open(CALLS_LOG, "a", encoding="utf-8") as f:
+        f.write(f"[{ts}] CALL | tool: {tool_name} | cmd_len: {cmd_len}\n")
+
+
+def count_today_calls():
+    """Count Bash/Write calls logged since midnight today."""
+    if not CALLS_LOG.exists():
+        return 0
+    today = datetime.now().date()
+    count = 0
+    with open(CALLS_LOG, encoding="utf-8") as f:
+        for line in f:
+            m = re.search(r"\[(\d{4}-\d{2}-\d{2}) ", line)
+            if m and m.group(1) == str(today) and "CALL" in line:
+                count += 1
+    return count
+
+
+def check_rate_limit(data, tool_name, cmd_len):
+    """
+    Two gates that run before pattern matching — same idea as the food app:
+      1. Command length cap  (analogous to foodName.length > 200)
+      2. Daily call cap      (analogous to origin allowlist — a hard ceiling)
+    Returns a block dict or None.
+    """
+    cfg      = (data or {}).get("settings", {})
+    max_len  = cfg.get("max_command_length", 0)
+    max_day  = cfg.get("max_calls_per_day", 0)
+
+    if max_len and cmd_len > max_len:
+        return {
+            "action": "block",
+            "message": (
+                f"Command too long ({cmd_len:,} chars, limit {max_len:,}).\n\n"
+                f"  Break this into a script or run it yourself in a terminal.\n"
+                f"  Long chained commands are usually cheaper to write than to delegate.\n\n"
+                f"  To bypass:  # token-optimizer: skip"
+            ),
+        }
+
+    if max_day:
+        calls_today = count_today_calls()
+        if calls_today >= max_day:
+            return {
+                "action": "block",
+                "message": (
+                    f"Daily limit reached: {calls_today} Claude tool calls today (cap {max_day}).\n\n"
+                    f"  Open a terminal. Your hands remember how to type.\n"
+                    f"  Resets at midnight.\n\n"
+                    f"  To disable the cap:  set max_calls_per_day: 0 in patterns.yaml\n"
+                    f"  To bypass one call:  TOKEN_OPTIMIZER_DISABLED=1"
+                ),
+            }
+
+    return None
+
+
 def run_report():
     if not LOG_FILE.exists():
         print(f"No blocked operations logged yet.\nLog: {LOG_FILE}"); return
@@ -117,8 +181,21 @@ def main():
     if tool_name not in ("Bash", "Write"):
         print(_CONTINUE); return
 
-    command = tool_input.get("command", "") if isinstance(tool_input, dict) else ""
-    data    = load_patterns()
+    command  = tool_input.get("command", "") if isinstance(tool_input, dict) else ""
+    cmd_len  = len(command)
+    data     = load_patterns()
+
+    # Gate 1 & 2: rate limits (command length cap + daily call cap).
+    # Runs before pattern matching — same as food app bailing on oversized inputs
+    # before hitting the Anthropic API.
+    rate_block = check_rate_limit(data, tool_name, cmd_len)
+    if rate_block:
+        print(json.dumps(rate_block))
+        return
+
+    # Log the call (for daily counter). Only non-skipped calls reach here.
+    log_call(tool_name, cmd_len)
+
     matched = match_pattern(command, data)
 
     if matched:
