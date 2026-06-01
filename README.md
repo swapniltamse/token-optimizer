@@ -84,8 +84,11 @@ The skill catches waste before it starts. The hook catches it even when you forg
 | find-usages | "find references to" | Run grep -r | IDE Find References | 1,250 |
 | sql-from-scratch | "write me a SQL query" | Guess your schema | Write rough SELECT, Claude optimizes | 3,750 |
 | organize-imports | "clean up imports" | Read every import | Shift+Alt+O in VS Code | 1,250 |
+| simple-find-replace | "replace X with Y in this file" | Read the file, run sed | Ctrl+H in your IDE | 1,200 |
+| git-status | "what files changed" | Run git status, parse output | `git status` | 550* |
+| list-directory | "list files in this folder" | Run ls, read directory | `ls` or file explorer | 400* |
 
-The full pattern library is in `config/patterns.yaml`. All 10 patterns are documented with the relatable reason each one was added.
+The full pattern library is in `config/patterns.yaml`. All 10 patterns are documented with the relatable reason each one was added. *Patterns marked with an asterisk are below the default 1,000-token block threshold — they are logged but not blocked unless you lower `block_threshold_tokens` in settings.
 
 ---
 
@@ -108,6 +111,8 @@ Requires Python 3. PyYAML is installed automatically.
 The installer downloads the skill files to `~/.claude/skills/token-optimizer/`, registers the PreToolUse hook in `~/.claude/settings.json`, and creates the log directory. It merges your existing settings — nothing is overwritten.
 
 Then restart Claude Code.
+
+Your pattern library is at `~/.claude/skills/token-optimizer/config/patterns.yaml`. Open it on day one to verify the rules or adjust the blocking threshold before your first session.
 
 ---
 
@@ -207,6 +212,8 @@ It does not fight you. The bypass prefix passes any command through in one line.
 ## My savings this week
 
 Run the report, fill this in, share it:
+
+The output is formatted to paste directly into a team Slack channel or a weekly engineering status report. Engineering managers: this is your visibility line into how much the team is self-correcting.
 
 ```
 python3 ~/.claude/skills/token-optimizer/hooks/token_guard.py report
