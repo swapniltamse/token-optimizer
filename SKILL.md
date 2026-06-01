@@ -5,7 +5,8 @@ description: |
   Use when about to ask Claude to write a commit message, summarize a diff,
   rename a variable, write a SQL query, or run any operation a developer
   could do directly. Signs this skill applies: git workflow tasks,
-  IDE-native operations, file listing, simple find-replace.
+  IDE-native operations, file listing, simple find-replace, reading README
+  or server config files.
 license: MIT
 compatibility: claude-code
 allowed-tools:
@@ -34,6 +35,7 @@ Invoke `/token-optimizer [task description]` when you recognize any of these:
 - You want to find all usages of a function or symbol in the codebase
 - You are about to ask Claude to list, organize, or clean up imports
 - The task involves a git command you have run before and know by heart
+- You are asking Claude to read a README, server config, or auto-generated file
 
 If none of these fit: do not invoke the skill. Just proceed with your task.
 
@@ -135,14 +137,20 @@ Then continue with the task immediately. No friction.
 
 ## Mode 2: Audit  (/token-optimizer audit)
 
-Review the bash commands and file writes in the current conversation.
+Review the bash commands, file writes, and file reads in the current conversation.
 Identify which ones were manual-first opportunities.
+
+The hook intercepts three tool types:
+- **Bash** — matched against `bash_patterns` (git, grep, find, sed, ls)
+- **Write** — matched against `bash_patterns` on the command field
+- **Read** — matched against `file_path_patterns` (README, server.py, generated files)
 
 Output:
 
 | Tool Call | Pattern | Manual Alternative | Est. Tokens |
 |-----------|---------|-------------------|-------------|
 | git diff  | git-diff | git diff --stat  | 3,000       |
+| Read README.md | read-readme | Open in editor | 1,750 |
 
 Then:
 ```
