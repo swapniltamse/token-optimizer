@@ -13,7 +13,21 @@ LOG_FILE      = LOG_DIR / "blocked.log"
 CALLS_LOG     = LOG_DIR / "calls.log"
 THRESHOLD     = 1000
 _COST_PER_TOKEN = (0.70 * 3.00 + 0.30 * 15.00) / 1_000_000  # Sonnet 4.6, 70/30 split
-_CONTINUE     = json.dumps({"action": "continue"})
+def _deny(reason):
+    return json.dumps({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": reason
+        }
+    })
+
+_CONTINUE = json.dumps({
+    "hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "allow"
+    }
+})
 
 
 def load_patterns():
@@ -114,29 +128,23 @@ def check_rate_limit(data, tool_name, cmd_len):
     max_day  = cfg.get("max_calls_per_day", 0)
 
     if max_len and cmd_len > max_len:
-        return {
-            "action": "block",
-            "message": (
-                f"Command too long ({cmd_len:,} chars, limit {max_len:,}).\n\n"
-                f"  Break this into a script or run it yourself in a terminal.\n"
-                f"  Long chained commands are usually cheaper to write than to delegate.\n\n"
-                f"  To bypass:  # token-optimizer: skip"
-            ),
-        }
+        return _deny(
+            f"Command too long ({cmd_len:,} chars, limit {max_len:,}).\n\n"
+            f"  Break this into a script or run it yourself in a terminal.\n"
+            f"  Long chained commands are usually cheaper to write than to delegate.\n\n"
+            f"  To bypass:  # token-optimizer: skip"
+        )
 
     if max_day:
         calls_today = count_today_calls()
         if calls_today >= max_day:
-            return {
-                "action": "block",
-                "message": (
-                    f"Daily limit reached: {calls_today} Claude tool calls today (cap {max_day}).\n\n"
-                    f"  Open a terminal. Your hands remember how to type.\n"
-                    f"  Resets at midnight.\n\n"
-                    f"  To disable the cap:  set max_calls_per_day: 0 in patterns.yaml\n"
-                    f"  To bypass one call:  TOKEN_OPTIMIZER_DISABLED=1"
-                ),
-            }
+            return _deny(
+                f"Daily limit reached: {calls_today} Claude tool calls today (cap {max_day}).\n\n"
+                f"  Open a terminal. Your hands remember how to type.\n"
+                f"  Resets at midnight.\n\n"
+                f"  To disable the cap:  set max_calls_per_day: 0 in patterns.yaml\n"
+                f"  To bypass one call:  TOKEN_OPTIMIZER_DISABLED=1"
+            )
 
     return None
 
@@ -204,7 +212,7 @@ def main():
             required  = set(cfg.get("team_config", {}).get("required_patterns", []))
             if avg_tokens(matched) >= threshold or matched.get("id") in required:
                 log_blocked(matched)
-                print(json.dumps({"action": "block", "message": build_message(matched)}))
+                print(_deny(build_message(matched)))
                 return
         print(_CONTINUE)
         return
@@ -217,7 +225,7 @@ def main():
     # before hitting the Anthropic API.
     rate_block = check_rate_limit(data, tool_name, cmd_len)
     if rate_block:
-        print(json.dumps(rate_block))
+        print(rate_block)
         return
 
     # Log the call (for daily counter). Only non-skipped calls reach here.

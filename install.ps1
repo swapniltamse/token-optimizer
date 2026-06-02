@@ -71,7 +71,7 @@ except (FileNotFoundError, json.JSONDecodeError):
     cfg = {}
 
 entry = {
-    "matcher": "Bash|Write",
+    "matcher": "Bash|Write|Read",
     "hooks": [{"type": "command", "command": hook_cmd}]
 }
 
